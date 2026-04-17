@@ -1,6 +1,9 @@
 # Worktrees (isolated workspaces, never committed)
 .worktrees/
 
+# Kotlin
+.kotlin/
+
 # Gradle
 .gradle/
 build/
