@@ -33,8 +33,8 @@
 **Перед КАЖДОЙ командой `./gradlew`** — экспорт окружения (без этого сборка упадёт):
 
 ```bash
-export JAVA_HOME=/home/tatyana/workspace/android-toolchain/jdk-17
-export ANDROID_HOME=/home/tatyana/workspace/android-toolchain/android-sdk
+export JAVA_HOME=/home/tatyana/jdk-17
+export ANDROID_HOME=/home/tatyana/Android/Sdk
 export PATH=$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH
 ```
 
