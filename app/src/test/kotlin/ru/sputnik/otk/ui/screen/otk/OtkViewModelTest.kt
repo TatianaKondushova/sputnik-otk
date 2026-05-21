@@ -17,8 +17,10 @@ import org.junit.Before
 import org.junit.Test
 import ru.sputnik.otk.data.ErrorEntry
 import ru.sputnik.otk.data.ErrorLogRepository
+import ru.sputnik.otk.data.InMemoryDataStore
 import ru.sputnik.otk.data.InMemoryPanelRepository
 import ru.sputnik.otk.data.Panel
+import ru.sputnik.otk.data.SettingsStore
 import ru.sputnik.otk.data.WebhookClient
 import java.time.Clock
 import java.time.Instant
@@ -68,10 +70,12 @@ class OtkViewModelTest {
         webhook: FakeWebhookClient = FakeWebhookClient(ArrayDeque()),
         panels: InMemoryPanelRepository = InMemoryPanelRepository(),
         errors: FakeErrorLog = FakeErrorLog(),
+        settings: SettingsStore = SettingsStore(InMemoryDataStore()),
     ): OtkViewModel = OtkViewModel(
         webhookClient = webhook,
         panelRepository = panels,
         errorLogRepository = errors,
+        settingsStore = settings,
         clock = fixedClock,
     )
 
@@ -221,5 +225,27 @@ class OtkViewModelTest {
 
         advanceUntilIdle()
         assertEquals(true, vm.onBackClicked())
+    }
+
+    @Test
+    fun `master is restored from settings store`() = runTest(dispatcher) {
+        val settings = SettingsStore(InMemoryDataStore())
+        settings.setSelectedMaster("Камиль")
+
+        val vm = buildVm(settings = settings)
+        advanceUntilIdle()
+
+        assertEquals("Камиль", vm.uiState.value.master)
+    }
+
+    @Test
+    fun `onMasterSelected persists master to settings store`() = runTest(dispatcher) {
+        val settings = SettingsStore(InMemoryDataStore())
+        val vm = buildVm(settings = settings)
+
+        vm.onMasterSelected("Виктор")
+        advanceUntilIdle()
+
+        assertEquals("Виктор", settings.selectedMaster.first())
     }
 }

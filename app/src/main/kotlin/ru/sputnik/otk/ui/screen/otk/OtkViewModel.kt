@@ -17,6 +17,7 @@ import ru.sputnik.otk.data.DEFAULT_WEBHOOK_URL
 import ru.sputnik.otk.data.ErrorLogRepository
 import ru.sputnik.otk.data.Panel
 import ru.sputnik.otk.data.PanelRepository
+import ru.sputnik.otk.data.SettingsStore
 import ru.sputnik.otk.data.WebhookClient
 import java.time.Clock
 import java.time.LocalDate
@@ -25,10 +26,21 @@ class OtkViewModel(
     private val webhookClient: WebhookClient,
     private val panelRepository: PanelRepository,
     private val errorLogRepository: ErrorLogRepository,
+    private val settingsStore: SettingsStore,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
     private val localState = MutableStateFlow(OtkUiState())
+
+    init {
+        viewModelScope.launch {
+            settingsStore.selectedMaster.collect { savedMaster ->
+                if (localState.value.master == null && savedMaster != null) {
+                    localState.update { it.copy(master = savedMaster) }
+                }
+            }
+        }
+    }
     private val events = Channel<SnackbarEvent>(Channel.BUFFERED)
 
     val uiState: StateFlow<OtkUiState> = combine(
@@ -41,6 +53,9 @@ class OtkViewModel(
 
     fun onMasterSelected(master: String) {
         localState.update { it.copy(master = master) }
+        viewModelScope.launch {
+            settingsStore.setSelectedMaster(master)
+        }
     }
 
     fun onPanelInputChanged(text: String) {

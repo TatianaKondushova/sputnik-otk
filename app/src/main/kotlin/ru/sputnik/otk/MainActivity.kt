@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    val appContainer = remember { AppContainer() }
+                    val appContainer = remember { AppContainer(applicationContext) }
                     CompositionLocalProvider(LocalAppContainer provides appContainer) {
                         val navController = rememberNavController()
                         NavHost(navController = navController, startDestination = "home") {

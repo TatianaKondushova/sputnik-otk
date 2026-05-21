@@ -3,6 +3,9 @@ package ru.sputnik.otk.data
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class ErrorEntry(
     val panelId: String,
     val reason: String,

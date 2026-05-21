@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ru.sputnik.otk.data.ErrorLogRepository
 import ru.sputnik.otk.data.PanelRepository
+import ru.sputnik.otk.data.SettingsStore
 import ru.sputnik.otk.data.WebhookClient
 
 class OtkViewModelFactory(
     private val webhookClient: WebhookClient,
     private val panelRepository: PanelRepository,
     private val errorLogRepository: ErrorLogRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -17,6 +19,6 @@ class OtkViewModelFactory(
         require(modelClass == OtkViewModel::class.java) {
             "OtkViewModelFactory can create only OtkViewModel"
         }
-        return OtkViewModel(webhookClient, panelRepository, errorLogRepository) as T
+        return OtkViewModel(webhookClient, panelRepository, errorLogRepository, settingsStore) as T
     }
 }
