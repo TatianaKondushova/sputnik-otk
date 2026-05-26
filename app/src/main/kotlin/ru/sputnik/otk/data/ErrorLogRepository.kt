@@ -14,6 +14,7 @@ data class ErrorEntry(
 
 interface ErrorLogRepository {
     suspend fun log(panelId: String, reason: String)
+    suspend fun clear()
 }
 
 class InMemoryErrorLogRepository(
@@ -26,6 +27,12 @@ class InMemoryErrorLogRepository(
     override suspend fun log(panelId: String, reason: String) {
         mutex.withLock {
             entries += ErrorEntry(panelId, reason, now())
+        }
+    }
+
+    override suspend fun clear() {
+        mutex.withLock {
+            entries.clear()
         }
     }
 

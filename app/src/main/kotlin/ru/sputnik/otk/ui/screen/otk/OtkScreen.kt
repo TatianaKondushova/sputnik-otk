@@ -43,8 +43,19 @@ fun OtkScreen(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        viewModel.snackbarEvents.collect { event ->
-            snackbarHostState.showSnackbar(event.text)
+        launch {
+            viewModel.snackbarEvents.collect { event ->
+                snackbarHostState.showSnackbar(event.text)
+            }
+        }
+        container.pendingNfcPanelId?.let { panelId ->
+            viewModel.onNfcScanned(panelId)
+            container.pendingNfcPanelId = null
+        }
+        launch {
+            container.nfcScans.collect { panelId ->
+                viewModel.onNfcScanned(panelId)
+            }
         }
     }
 

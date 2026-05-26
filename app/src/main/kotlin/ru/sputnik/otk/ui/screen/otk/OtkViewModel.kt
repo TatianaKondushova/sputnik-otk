@@ -40,6 +40,14 @@ class OtkViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            settingsStore.masters.collect { masters ->
+                localState.update { current ->
+                    val validMaster = if (current.master in masters) current.master else null
+                    current.copy(master = validMaster, masters = masters)
+                }
+            }
+        }
     }
     private val events = Channel<SnackbarEvent>(Channel.BUFFERED)
 
@@ -79,6 +87,27 @@ class OtkViewModel(
                 PanelRepository.AddResult.Ok -> {
                     localState.update { it.copy(panelInput = "") }
                 }
+                PanelRepository.AddResult.Duplicate -> {
+                    events.send(SnackbarEvent.Error("Эта панель уже в списке"))
+                }
+            }
+        }
+    }
+
+    fun onNfcScanned(panelId: String) {
+        val master = localState.value.master
+        if (master == null) {
+            viewModelScope.launch {
+                events.send(SnackbarEvent.Error("Сначала выбери мастера"))
+            }
+            return
+        }
+        val id = panelId.trim()
+        if (id.isEmpty()) return
+
+        viewModelScope.launch {
+            when (panelRepository.add(Panel(id = id))) {
+                PanelRepository.AddResult.Ok -> { /* nothing */ }
                 PanelRepository.AddResult.Duplicate -> {
                     events.send(SnackbarEvent.Error("Эта панель уже в списке"))
                 }

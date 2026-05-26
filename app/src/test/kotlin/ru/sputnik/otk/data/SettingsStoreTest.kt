@@ -1,5 +1,6 @@
 package ru.sputnik.otk.data
 
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -55,5 +56,26 @@ class SettingsStoreTest {
         val store = createStore()
         store.setWebhookPassword("secret123")
         assertEquals("secret123", store.webhookPassword.first())
+    }
+
+    @Test
+    fun `masters defaults to DEFAULT_MASTERS`() = runTest {
+        val store = createStore()
+        assertEquals(SettingsStore.DEFAULT_MASTERS, store.masters.first())
+    }
+
+    @Test
+    fun `setMasters updates masters`() = runTest {
+        val store = createStore()
+        store.setMasters(listOf("Анна", "Борис"))
+        assertEquals(listOf("Анна", "Борис"), store.masters.first())
+    }
+
+    @Test
+    fun `corrupted masters falls back to DEFAULT_MASTERS`() = runTest {
+        val dataStore = InMemoryDataStore()
+        val store = SettingsStore(dataStore)
+        dataStore.edit { it[stringPreferencesKey("masters")] = "invalid json" }
+        assertEquals(SettingsStore.DEFAULT_MASTERS, store.masters.first())
     }
 }
