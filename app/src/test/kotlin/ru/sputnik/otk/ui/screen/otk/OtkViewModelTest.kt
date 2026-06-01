@@ -2,11 +2,13 @@ package ru.sputnik.otk.ui.screen.otk
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -48,6 +50,9 @@ class OtkViewModelTest {
         override suspend fun log(panelId: String, reason: String) {
             entries += ErrorEntry(panelId, reason, 0L)
         }
+        override suspend fun clear() {
+            entries.clear()
+        }
     }
 
     private class FakeWebhookClient(
@@ -61,6 +66,7 @@ class OtkViewModelTest {
             master: String,
             date: java.time.LocalDate,
         ): Result {
+            kotlinx.coroutines.delay(1)
             calls += panel
             return responses.removeFirst()
         }
@@ -218,11 +224,15 @@ class OtkViewModelTest {
         val webhook = FakeWebhookClient(ArrayDeque(listOf(WebhookClient.Result.Ok)))
         val vm = buildVm(webhook = webhook, panels = panels)
         vm.onMasterSelected("Руслан")
+        advanceUntilIdle()
 
         vm.onSaveClicked()
-        assertTrue(vm.uiState.value.isSending)
+        // combine/stateIn обновляет uiState асинхронно — нужно выполнить отложенные задачи
+        runCurrent()
+        assertTrue("isSending should be true after runCurrent", vm.uiState.value.isSending)
         assertEquals(false, vm.onBackClicked())
 
+        // Дожидаемся завершения отправки (включая delay(1) в FakeWebhookClient)
         advanceUntilIdle()
         assertEquals(true, vm.onBackClicked())
     }

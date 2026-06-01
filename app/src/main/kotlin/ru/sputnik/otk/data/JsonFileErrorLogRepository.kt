@@ -29,7 +29,7 @@ class JsonFileErrorLogRepository(
         entries.toList()
     }
 
-    suspend fun clear() {
+    override suspend fun clear() {
         mutex.withLock {
             entries.clear()
             save()
@@ -51,7 +51,7 @@ class JsonFileErrorLogRepository(
 
     private fun save() {
         try {
-            file.writeText(json.encodeToString(entries.toList()))
+            file.writeText(json.encodeToString(kotlinx.serialization.serializer(), entries.toList()))
         } catch (_: Exception) {
             // ignore write errors for now
         }

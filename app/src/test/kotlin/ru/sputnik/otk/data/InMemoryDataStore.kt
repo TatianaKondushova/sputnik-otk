@@ -16,3 +16,11 @@ class InMemoryDataStore : DataStore<Preferences> {
         return _data.value
     }
 }
+
+suspend fun DataStore<Preferences>.edit(transform: suspend (MutablePreferences) -> Unit): Preferences {
+    return updateData { preferences ->
+        val mutablePreferences = (preferences as MutablePreferences).toMutablePreferences()
+        transform(mutablePreferences)
+        mutablePreferences
+    }
+}

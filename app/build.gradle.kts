@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "ru.sputnik.otk"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ru.sputnik.otk"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 3
         versionName = "0.3.0"
 

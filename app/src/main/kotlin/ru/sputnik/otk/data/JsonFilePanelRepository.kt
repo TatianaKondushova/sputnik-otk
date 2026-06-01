@@ -56,7 +56,7 @@ class JsonFilePanelRepository(
 
     private fun save() {
         try {
-            file.writeText(json.encodeToString(_panels.value))
+            file.writeText(json.encodeToString(kotlinx.serialization.serializer(), _panels.value))
         } catch (_: Exception) {
             // ignore write errors for now
         }

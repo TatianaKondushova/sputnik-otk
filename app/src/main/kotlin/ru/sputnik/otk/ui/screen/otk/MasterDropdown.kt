@@ -62,7 +62,7 @@ fun MasterDropdown(
 @Composable
 private fun MasterDropdownEmptyPreview() {
     SputnikOtkTheme {
-        MasterDropdown(selected = null, options = OtkUiState.DEFAULT_MASTERS, onSelected = {})
+        MasterDropdown(selected = null, options = listOf("Руслан", "Камиль", "Виктор", "Тимур", "Мастер"), onSelected = {})
     }
 }
 
@@ -70,6 +70,6 @@ private fun MasterDropdownEmptyPreview() {
 @Composable
 private fun MasterDropdownSelectedPreview() {
     SputnikOtkTheme {
-        MasterDropdown(selected = "Руслан", options = OtkUiState.DEFAULT_MASTERS, onSelected = {})
+        MasterDropdown(selected = "Руслан", options = listOf("Руслан", "Камиль", "Виктор", "Тимур", "Мастер"), onSelected = {})
     }
 }

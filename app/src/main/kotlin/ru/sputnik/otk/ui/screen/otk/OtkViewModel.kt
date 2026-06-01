@@ -12,8 +12,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import ru.sputnik.otk.data.DEFAULT_WEBHOOK_PASSWORD
-import ru.sputnik.otk.data.DEFAULT_WEBHOOK_URL
+import kotlinx.coroutines.flow.first
 import ru.sputnik.otk.data.ErrorLogRepository
 import ru.sputnik.otk.data.Panel
 import ru.sputnik.otk.data.PanelRepository
@@ -116,23 +115,25 @@ class OtkViewModel(
     }
 
     fun onSaveClicked() {
-        val snapshot = uiState.value
+        val snapshot = localState.value
         if (snapshot.isSending) return
         val master = snapshot.master ?: return
         val batch = panelRepository.panels.value
         if (batch.isEmpty()) return
 
-        viewModelScope.launch {
-            localState.update { it.copy(isSending = true, sendProgress = 0 to batch.size) }
+        localState.update { it.copy(isSending = true, sendProgress = 0 to batch.size) }
 
+        viewModelScope.launch {
+            val url = settingsStore.webhookUrl.first()
+            val password = settingsStore.webhookPassword.first()
             var ok = 0
             var abortedByWrongPassword = false
             val today = LocalDate.now(clock)
 
             for ((index, panel) in batch.withIndex()) {
                 val result = webhookClient.send(
-                    url = DEFAULT_WEBHOOK_URL,
-                    password = DEFAULT_WEBHOOK_PASSWORD,
+                    url = url,
+                    password = password,
                     panel = panel,
                     master = master,
                     date = today,
