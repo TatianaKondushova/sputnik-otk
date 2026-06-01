@@ -18,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ru.sputnik.otk.data.NfcParser
 import ru.sputnik.otk.ui.screen.HomeScreen
+import ru.sputnik.otk.ui.screen.errorlog.ErrorLogScreen
 import ru.sputnik.otk.ui.screen.otk.OtkScreen
 import ru.sputnik.otk.ui.screen.settings.SettingsScreen
 import ru.sputnik.otk.ui.theme.SputnikOtkTheme
@@ -61,10 +62,16 @@ class MainActivity : ComponentActivity() {
                             composable("otk") {
                                 OtkScreen(
                                     onNavigateBack = { navController.popBackStack() },
+                                    onNavigateToLogs = { navController.navigate("error_log") },
                                 )
                             }
                             composable("settings") {
                                 SettingsScreen(
+                                    onNavigateBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable("error_log") {
+                                ErrorLogScreen(
                                     onNavigateBack = { navController.popBackStack() },
                                 )
                             }

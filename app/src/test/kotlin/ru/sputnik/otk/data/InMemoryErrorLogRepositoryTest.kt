@@ -11,7 +11,7 @@ class InMemoryErrorLogRepositoryTest {
         val repo = InMemoryErrorLogRepository()
         repo.log("04:AB:CD", "wrong password")
 
-        val entries = repo.snapshot()
+        val entries = repo.getAll()
         assertEquals(1, entries.size)
         assertEquals("04:AB:CD", entries.first().panelId)
         assertEquals("wrong password", entries.first().reason)
@@ -23,7 +23,7 @@ class InMemoryErrorLogRepositoryTest {
         repo.log("p1", "r1")
         repo.log("p2", "r2")
 
-        val entries = repo.snapshot()
+        val entries = repo.getAll()
         assertEquals(listOf("p1", "p2"), entries.map { it.panelId })
         assertEquals(listOf("r1", "r2"), entries.map { it.reason })
     }

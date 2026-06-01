@@ -1,15 +1,27 @@
 package ru.sputnik.otk.ui.screen.otk
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -21,8 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,12 +50,14 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun OtkScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToLogs: () -> Unit,
 ) {
     val container = LocalAppContainer.current
     val viewModel: OtkViewModel = viewModel(factory = container.otkViewModelFactory())
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showClearDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         launch {
@@ -57,6 +74,29 @@ fun OtkScreen(
                 viewModel.onNfcScanned(panelId)
             }
         }
+    }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Очистить список?") },
+            text = { Text("Все ${state.pendingPanels.size} панелей будут удалены. Это действие нельзя отменить.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDialog = false
+                        viewModel.onClearClicked()
+                    },
+                ) {
+                    Text("Очистить", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("Отмена")
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -79,15 +119,24 @@ fun OtkScreen(
             )
 
             Spacer(Modifier.height(16.dp))
-            Text(
-                text = "Дата: ${LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Дата: ${LocalDate.now().format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (state.pendingPanels.isNotEmpty()) {
+                    PanelCounter(count = state.pendingPanels.size)
+                }
+            }
 
             Spacer(Modifier.height(16.dp))
             PanelInput(
                 value = state.panelInput,
-                enabled = state.master != null,
+                enabled = state.master != null && !state.isSending,
                 onValueChange = viewModel::onPanelInputChanged,
                 onAdd = viewModel::onAddPanelClicked,
             )
@@ -102,12 +151,34 @@ fun OtkScreen(
             }
 
             Spacer(Modifier.height(24.dp))
-            Text(
-                text = "Отсканировано (${state.pendingPanels.size}):",
-                style = MaterialTheme.typography.titleMedium,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Отсканировано:",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (state.pendingPanels.isNotEmpty() && !state.isSending) {
+                    TextButton(
+                        onClick = { showClearDialog = true },
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Очистить", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
-            PanelList(panels = state.pendingPanels)
+            PanelList(
+                panels = state.pendingPanels,
+                onRemove = viewModel::onRemovePanel,
+            )
 
             Spacer(Modifier.height(24.dp))
             OtkBottomBar(
@@ -115,16 +186,28 @@ fun OtkScreen(
                 isSending = state.isSending,
                 sendProgress = state.sendProgress,
                 onSave = viewModel::onSaveClicked,
-                onLogs = {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Доступно на следующем этапе")
-                    }
-                },
+                onLogs = onNavigateToLogs,
                 onBack = {
                     if (viewModel.onBackClicked()) onNavigateBack()
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun PanelCounter(count: Int) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+    ) {
+        Text(
+            text = "$count",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -138,14 +221,38 @@ private fun OtkBottomBar(
     onBack: () -> Unit,
 ) {
     Column {
-        Button(onClick = onSave, enabled = saveEnabled) {
-            Text(if (isSending && sendProgress != null)
-                "Отправка ${sendProgress.first} из ${sendProgress.second}"
-            else "Сохранить")
+        Button(
+            onClick = onSave,
+            enabled = saveEnabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (isSending && sendProgress != null) {
+                CircularProgressIndicator(
+                    progress = { sendProgress.first.toFloat() / sendProgress.second },
+                    modifier = Modifier
+                        .height(20.dp)
+                        .width(20.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Отправка ${sendProgress.first} из ${sendProgress.second}")
+            } else {
+                Text("Сохранить")
+            }
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onLogs) { Text("Логи") }
+        OutlinedButton(
+            onClick = onLogs,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Логи")
+        }
         Spacer(Modifier.height(8.dp))
-        TextButton(onClick = onBack) { Text("Назад") }
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Назад")
+        }
     }
 }

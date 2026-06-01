@@ -11,6 +11,7 @@ import ru.sputnik.otk.data.JsonFilePanelRepository
 import ru.sputnik.otk.data.PanelRepository
 import ru.sputnik.otk.data.SettingsStore
 import ru.sputnik.otk.data.WebhookClient
+import ru.sputnik.otk.ui.screen.errorlog.ErrorLogViewModelFactory
 import ru.sputnik.otk.ui.screen.otk.OtkViewModelFactory
 import ru.sputnik.otk.ui.screen.settings.SettingsViewModelFactory
 import java.time.Duration
@@ -46,4 +47,7 @@ class AppContainer(context: Context) {
 
     fun settingsViewModelFactory(): ViewModelProvider.Factory =
         SettingsViewModelFactory(settingsStore, panelRepository, errorLogRepository)
+
+    fun errorLogViewModelFactory(): ViewModelProvider.Factory =
+        ErrorLogViewModelFactory(errorLogRepository)
 }

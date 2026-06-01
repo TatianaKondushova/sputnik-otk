@@ -25,7 +25,7 @@ class JsonFileErrorLogRepository(
         }
     }
 
-    suspend fun snapshot(): List<ErrorEntry> = mutex.withLock {
+    override suspend fun getAll(): List<ErrorEntry> = mutex.withLock {
         entries.toList()
     }
 

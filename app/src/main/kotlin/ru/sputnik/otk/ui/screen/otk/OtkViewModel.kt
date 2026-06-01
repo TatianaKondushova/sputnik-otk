@@ -172,6 +172,19 @@ class OtkViewModel(
         }
     }
 
+    fun onRemovePanel(panelId: String) {
+        viewModelScope.launch {
+            panelRepository.remove(panelId)
+        }
+    }
+
+    fun onClearClicked() {
+        viewModelScope.launch {
+            panelRepository.clear()
+            events.send(SnackbarEvent.Info("Список очищен"))
+        }
+    }
+
     fun onBackClicked(): Boolean {
         if (uiState.value.isSending) {
             viewModelScope.launch {

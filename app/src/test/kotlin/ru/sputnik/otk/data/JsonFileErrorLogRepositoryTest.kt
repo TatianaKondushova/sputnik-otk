@@ -23,7 +23,7 @@ class JsonFileErrorLogRepositoryTest {
         val repo = createRepo()
         repo.log("04:AB:CD", "wrong password")
 
-        val entries = repo.snapshot()
+        val entries = repo.getAll()
         assertEquals(1, entries.size)
         assertEquals("04:AB:CD", entries.first().panelId)
         assertEquals("wrong password", entries.first().reason)
@@ -35,7 +35,7 @@ class JsonFileErrorLogRepositoryTest {
         repo.log("p1", "r1")
         repo.log("p2", "r2")
 
-        val entries = repo.snapshot()
+        val entries = repo.getAll()
         assertEquals(listOf("p1", "p2"), entries.map { it.panelId })
         assertEquals(listOf("r1", "r2"), entries.map { it.reason })
     }
@@ -48,7 +48,7 @@ class JsonFileErrorLogRepositoryTest {
 
         val repo2 = JsonFileErrorLogRepository(file, Json) { 2000L }
 
-        val entries = repo2.snapshot()
+        val entries = repo2.getAll()
         assertEquals(1, entries.size)
         assertEquals("a", entries.single().panelId)
         assertEquals("err1", entries.single().reason)
@@ -61,7 +61,7 @@ class JsonFileErrorLogRepositoryTest {
 
         repo.clear()
 
-        assertTrue(repo.snapshot().isEmpty())
+        assertTrue(repo.getAll().isEmpty())
     }
 
     @Test
@@ -71,6 +71,6 @@ class JsonFileErrorLogRepositoryTest {
 
         val repo = createRepo()
 
-        assertTrue(repo.snapshot().isEmpty())
+        assertTrue(repo.getAll().isEmpty())
     }
 }

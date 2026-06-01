@@ -50,6 +50,8 @@ class OtkViewModelTest {
         override suspend fun log(panelId: String, reason: String) {
             entries += ErrorEntry(panelId, reason, 0L)
         }
+        override suspend fun getAll(): List<ErrorEntry> = entries.toList()
+
         override suspend fun clear() {
             entries.clear()
         }
@@ -235,6 +237,42 @@ class OtkViewModelTest {
         // Дожидаемся завершения отправки (включая delay(1) в FakeWebhookClient)
         advanceUntilIdle()
         assertEquals(true, vm.onBackClicked())
+    }
+
+    @Test
+    fun `onRemovePanel removes single panel`() = runTest(dispatcher) {
+        val panels = InMemoryPanelRepository().also {
+            it.add(Panel("a")); it.add(Panel("b"))
+        }
+        val vm = buildVm(panels = panels)
+        vm.onMasterSelected("Руслан")
+        advanceUntilIdle()
+
+        assertEquals(listOf("a", "b"), vm.uiState.value.pendingPanels.map { it.id })
+
+        vm.onRemovePanel("a")
+        advanceUntilIdle()
+
+        assertEquals(listOf("b"), vm.uiState.value.pendingPanels.map { it.id })
+    }
+
+    @Test
+    fun `onClearClicked removes all panels and emits info snackbar`() = runTest(dispatcher) {
+        val panels = InMemoryPanelRepository().also {
+            it.add(Panel("a")); it.add(Panel("b"))
+        }
+        val vm = buildVm(panels = panels)
+        val events = mutableListOf<SnackbarEvent>()
+        val job = launch { vm.snackbarEvents.toList(events) }
+        vm.onMasterSelected("Руслан")
+        advanceUntilIdle()
+
+        vm.onClearClicked()
+        advanceUntilIdle()
+
+        assertTrue(vm.uiState.value.pendingPanels.isEmpty())
+        assertTrue(events.any { it is SnackbarEvent.Info && it.text.contains("очищен") })
+        job.cancel()
     }
 
     @Test
