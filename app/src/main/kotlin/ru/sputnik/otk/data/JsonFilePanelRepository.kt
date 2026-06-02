@@ -42,6 +42,13 @@ class JsonFilePanelRepository(
         save()
     }
 
+    override suspend fun updateFault(panelId: String, fault: String) = mutex.withLock {
+        _panels.update { current ->
+            current.map { if (it.id == panelId) it.copy(fault = fault) else it }
+        }
+        save()
+    }
+
     private fun load() {
         if (!file.exists()) return
         try {

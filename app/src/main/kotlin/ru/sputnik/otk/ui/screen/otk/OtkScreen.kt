@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,10 +41,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import ru.sputnik.otk.LocalAppContainer
+import ru.sputnik.otk.data.Panel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -58,6 +63,11 @@ fun OtkScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showClearDialog by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+
+    // Состояние диалога редактирования
+    var editTarget: Panel? by remember { mutableStateOf(null) }
+    var editText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         launch {
@@ -93,6 +103,39 @@ fun OtkScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
+                    Text("Отмена")
+                }
+            },
+        )
+    }
+
+    // Диалог редактирования fault
+    if (editTarget != null) {
+        AlertDialog(
+            onDismissRequest = { editTarget = null },
+            title = { Text("Комментарий к ${editTarget!!.id}") },
+            text = {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = { editText = it },
+                    label = { Text("Замечание") },
+                    singleLine = false,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.onEditFault(editTarget!!.id, editText.trim())
+                        editTarget = null
+                    },
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editTarget = null }) {
                     Text("Отмена")
                 }
             },
@@ -161,16 +204,33 @@ fun OtkScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (state.pendingPanels.isNotEmpty() && !state.isSending) {
-                    TextButton(
-                        onClick = { showClearDialog = true },
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Очистить", color = MaterialTheme.colorScheme.error)
+                    Row {
+                        IconButton(
+                            onClick = {
+                                val text = viewModel.formatForClipboard()
+                                clipboardManager.setText(AnnotatedString(text))
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Скопировано ${state.pendingPanels.size} шт.")
+                                }
+                            },
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Копировать",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        TextButton(
+                            onClick = { showClearDialog = true },
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("Очистить", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
             }
@@ -178,6 +238,11 @@ fun OtkScreen(
             PanelList(
                 panels = state.pendingPanels,
                 onRemove = viewModel::onRemovePanel,
+                onEdit = { panelId ->
+                    val panel = state.pendingPanels.find { it.id == panelId }
+                    editTarget = panel
+                    editText = panel?.fault ?: ""
+                },
             )
 
             Spacer(Modifier.height(24.dp))

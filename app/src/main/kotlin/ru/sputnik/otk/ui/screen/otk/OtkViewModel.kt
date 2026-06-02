@@ -185,6 +185,16 @@ class OtkViewModel(
         }
     }
 
+    fun onEditFault(panelId: String, fault: String) {
+        viewModelScope.launch {
+            panelRepository.updateFault(panelId, fault)
+        }
+    }
+
+    fun formatForClipboard(): String {
+        return panelRepository.panels.value.joinToString("\n") { it.id }
+    }
+
     fun onBackClicked(): Boolean {
         if (uiState.value.isSending) {
             viewModelScope.launch {

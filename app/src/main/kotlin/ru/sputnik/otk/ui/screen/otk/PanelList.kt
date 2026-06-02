@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ru.sputnik.otk.data.Panel
@@ -30,6 +32,7 @@ import ru.sputnik.otk.ui.theme.SputnikOtkTheme
 fun PanelList(
     panels: List<Panel>,
     onRemove: (String) -> Unit,
+    onEdit: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (panels.isEmpty()) {
@@ -56,6 +59,7 @@ fun PanelList(
             PanelCard(
                 panel = panel,
                 onRemove = { onRemove(panel.id) },
+                onEdit = { onEdit(panel.id) },
             )
         }
     }
@@ -65,8 +69,10 @@ fun PanelList(
 private fun PanelCard(
     panel: Panel,
     onRemove: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     Card(
+        onClick = onEdit,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -74,15 +80,33 @@ private fun PanelCard(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = panel.id,
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = panel.id,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (panel.fault.isNotBlank()) {
+                    Text(
+                        text = panel.fault,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Редактировать",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
             IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -97,7 +121,7 @@ private fun PanelCard(
 @Preview
 @Composable
 private fun PanelListEmptyPreview() {
-    SputnikOtkTheme { PanelList(panels = emptyList(), onRemove = {}) }
+    SputnikOtkTheme { PanelList(panels = emptyList(), onRemove = {}, onEdit = {}) }
 }
 
 @Preview
@@ -107,10 +131,11 @@ private fun PanelListFilledPreview() {
         PanelList(
             panels = listOf(
                 Panel("04:AB:CD"),
-                Panel("04:EF:12"),
+                Panel("04:EF:12", fault = "Царапина на корпусе"),
                 Panel("04:34:56"),
             ),
             onRemove = {},
+            onEdit = {},
         )
     }
 }

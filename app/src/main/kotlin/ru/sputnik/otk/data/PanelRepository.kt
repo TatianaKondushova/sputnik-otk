@@ -12,6 +12,7 @@ interface PanelRepository {
     suspend fun add(panel: Panel): AddResult
     suspend fun remove(panelId: String)
     suspend fun clear()
+    suspend fun updateFault(panelId: String, fault: String)
 
     sealed class AddResult {
         data object Ok : AddResult()
@@ -40,5 +41,11 @@ class InMemoryPanelRepository : PanelRepository {
 
     override suspend fun clear() = mutex.withLock {
         _panels.value = emptyList()
+    }
+
+    override suspend fun updateFault(panelId: String, fault: String) = mutex.withLock {
+        _panels.update { current ->
+            current.map { if (it.id == panelId) it.copy(fault = fault) else it }
+        }
     }
 }
