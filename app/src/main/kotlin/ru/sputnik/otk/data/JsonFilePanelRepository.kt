@@ -63,9 +63,11 @@ class JsonFilePanelRepository(
 
     private fun save() {
         try {
+            val dir = file.parentFile
+            if (dir != null && !dir.exists()) dir.mkdirs()
             file.writeText(json.encodeToString(kotlinx.serialization.serializer(), _panels.value))
-        } catch (_: Exception) {
-            // ignore write errors for now
+        } catch (e: Throwable) {
+            android.util.Log.e("PanelRepo", "Ошибка сохранения файла", e)
         }
     }
 }

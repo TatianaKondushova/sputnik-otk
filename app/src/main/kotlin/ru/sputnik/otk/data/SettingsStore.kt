@@ -82,6 +82,26 @@ class SettingsStore(
             "Руслан", "Камиль", "Виктор", "Тимур", "Мастер",
         )
 
+        @Volatile
+        private var instance: SettingsStore? = null
+
+        /**
+         * Потокобезопасный синглтон.
+         * DataStore можно создавать только один раз для каждого файла,
+         * иначе IllegalStateException. Поэтому кэшируем экземпляр.
+         */
+        fun singleton(context: Context, json: Json = Json { ignoreUnknownKeys = true }): SettingsStore {
+            return instance ?: synchronized(this) {
+                instance ?: run {
+                    val dataStore = PreferenceDataStoreFactory.create {
+                        context.preferencesDataStoreFile("settings")
+                    }
+                    SettingsStore(dataStore, json).also { instance = it }
+                }
+            }
+        }
+
+        /** Только для тестов. */
         fun create(context: Context, json: Json = Json { ignoreUnknownKeys = true }): SettingsStore {
             val dataStore = PreferenceDataStoreFactory.create {
                 context.preferencesDataStoreFile("settings")

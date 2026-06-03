@@ -5,6 +5,7 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Перехватчик крашей — установить как можно раньше
+        CrashLogger.install(applicationContext)
+
+        // Показать последний краш-лог, если есть
+        val lastCrash = CrashLogger.readAndClear(this)
+        if (lastCrash != null) {
+            Toast.makeText(this, "Был краш! Смотри настройки → Логи краша", Toast.LENGTH_LONG).show()
+            // Сохраняем для просмотра в экране логов
+            appLastCrashLog = lastCrash
+        }
+
         appContainer = AppContainer(applicationContext)
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         handleIntent(intent)
@@ -44,11 +57,14 @@ class MainActivity : ComponentActivity() {
                         val navController = rememberNavController()
 
                         LaunchedEffect(Unit) {
-                            appContainer.nfcScans.collect { panelId ->
-                                if (navController.currentDestination?.route != "otk") {
-                                    appContainer.pendingNfcPanelId = panelId
-                                    navController.navigate("otk")
+                            try {
+                                appContainer.nfcScans.collect { panelId ->
+                                    if (navController.currentDestination?.route != "otk") {
+                                        appContainer.pendingNfcPanelId = panelId
+                                        navController.navigate("otk")
+                                    }
                                 }
+                            } catch (_: Exception) {
                             }
                         }
 
@@ -84,19 +100,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_MUTABLE
-        } else {
-            0
+        try {
+            val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.FLAG_MUTABLE
+            } else {
+                0
+            }
+            val pendingIntent = PendingIntent.getActivity(this, 0, intent, pendingIntentFlags)
+            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+        } catch (_: Exception) {
         }
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, pendingIntentFlags)
-        nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
     }
 
     override fun onPause() {
         super.onPause()
-        nfcAdapter?.disableForegroundDispatch(this)
+        try {
+            nfcAdapter?.disableForegroundDispatch(this)
+        } catch (_: Exception) {
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -105,8 +127,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        NfcParser.parse(intent)?.let { panelId ->
+        try {
+            val panelId = NfcParser.parse(intent) ?: return
             appContainer.nfcScans.tryEmit(panelId)
+        } catch (_: Exception) {
         }
+    }
+
+    companion object {
+        /** Последний краш-лог, если приложение упало в предыдущем запуске. */
+        var appLastCrashLog: String? = null
+            private set
     }
 }

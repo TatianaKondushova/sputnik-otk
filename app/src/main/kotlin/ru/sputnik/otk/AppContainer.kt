@@ -40,7 +40,7 @@ class AppContainer(context: Context) {
         file = filesDir.resolve("error_log.json"),
         json = json,
     )
-    val settingsStore: SettingsStore = SettingsStore.create(context, json)
+    val settingsStore: SettingsStore = SettingsStore.singleton(context, json)
 
     fun otkViewModelFactory(): ViewModelProvider.Factory =
         OtkViewModelFactory(webhookClient, panelRepository, errorLogRepository, settingsStore)

@@ -71,17 +71,26 @@ fun OtkScreen(
 
     LaunchedEffect(Unit) {
         launch {
-            viewModel.snackbarEvents.collect { event ->
-                snackbarHostState.showSnackbar(event.text)
+            try {
+                viewModel.snackbarEvents.collect { event ->
+                    snackbarHostState.showSnackbar(event.text)
+                }
+            } catch (_: Exception) {
             }
         }
         container.pendingNfcPanelId?.let { panelId ->
-            viewModel.onNfcScanned(panelId)
+            try {
+                viewModel.onNfcScanned(panelId)
+            } catch (_: Exception) {
+            }
             container.pendingNfcPanelId = null
         }
         launch {
-            container.nfcScans.collect { panelId ->
-                viewModel.onNfcScanned(panelId)
+            try {
+                container.nfcScans.collect { panelId ->
+                    viewModel.onNfcScanned(panelId)
+                }
+            } catch (_: Exception) {
             }
         }
     }

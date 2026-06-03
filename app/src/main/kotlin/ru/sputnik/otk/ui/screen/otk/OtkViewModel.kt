@@ -1,5 +1,6 @@
 package ru.sputnik.otk.ui.screen.otk
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.channels.Channel
@@ -29,22 +30,32 @@ class OtkViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
+    private val tag = "OtkViewModel"
+
     private val localState = MutableStateFlow(OtkUiState())
 
     init {
         viewModelScope.launch {
-            settingsStore.selectedMaster.collect { savedMaster ->
-                if (localState.value.master == null && savedMaster != null) {
-                    localState.update { it.copy(master = savedMaster) }
+            try {
+                settingsStore.selectedMaster.collect { savedMaster ->
+                    if (localState.value.master == null && savedMaster != null) {
+                        localState.update { it.copy(master = savedMaster) }
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка загрузки выбранного мастера", e)
             }
         }
         viewModelScope.launch {
-            settingsStore.masters.collect { masters ->
-                localState.update { current ->
-                    val validMaster = if (current.master in masters) current.master else null
-                    current.copy(master = validMaster, masters = masters)
+            try {
+                settingsStore.masters.collect { masters ->
+                    localState.update { current ->
+                        val validMaster = if (current.master in masters) current.master else null
+                        current.copy(master = validMaster, masters = masters)
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка загрузки списка мастеров", e)
             }
         }
     }
@@ -61,7 +72,11 @@ class OtkViewModel(
     fun onMasterSelected(master: String) {
         localState.update { it.copy(master = master) }
         viewModelScope.launch {
-            settingsStore.setSelectedMaster(master)
+            try {
+                settingsStore.setSelectedMaster(master)
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка сохранения мастера", e)
+            }
         }
     }
 
@@ -82,13 +97,18 @@ class OtkViewModel(
         if (input.isEmpty()) return
 
         viewModelScope.launch {
-            when (panelRepository.add(Panel(id = input))) {
-                PanelRepository.AddResult.Ok -> {
-                    localState.update { it.copy(panelInput = "") }
+            try {
+                when (panelRepository.add(Panel(id = input))) {
+                    PanelRepository.AddResult.Ok -> {
+                        localState.update { it.copy(panelInput = "") }
+                    }
+                    PanelRepository.AddResult.Duplicate -> {
+                        events.send(SnackbarEvent.Error("Эта панель уже в списке"))
+                    }
                 }
-                PanelRepository.AddResult.Duplicate -> {
-                    events.send(SnackbarEvent.Error("Эта панель уже в списке"))
-                }
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка добавления панели вручную", e)
+                events.send(SnackbarEvent.Error("Ошибка: ${e.message}"))
             }
         }
     }
@@ -105,11 +125,16 @@ class OtkViewModel(
         if (id.isEmpty()) return
 
         viewModelScope.launch {
-            when (panelRepository.add(Panel(id = id))) {
-                PanelRepository.AddResult.Ok -> { /* nothing */ }
-                PanelRepository.AddResult.Duplicate -> {
-                    events.send(SnackbarEvent.Error("Эта панель уже в списке"))
+            try {
+                when (panelRepository.add(Panel(id = id))) {
+                    PanelRepository.AddResult.Ok -> { /* nothing */ }
+                    PanelRepository.AddResult.Duplicate -> {
+                        events.send(SnackbarEvent.Error("Эта панель уже в списке"))
+                    }
                 }
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка добавления панели по NFC", e)
+                events.send(SnackbarEvent.Error("Ошибка NFC: ${e.message}"))
             }
         }
     }
@@ -124,70 +149,87 @@ class OtkViewModel(
         localState.update { it.copy(isSending = true, sendProgress = 0 to batch.size) }
 
         viewModelScope.launch {
-            val url = settingsStore.webhookUrl.first()
-            val password = settingsStore.webhookPassword.first()
-            var ok = 0
-            var abortedByWrongPassword = false
-            val today = LocalDate.now(clock)
+            try {
+                val url = settingsStore.webhookUrl.first()
+                val password = settingsStore.webhookPassword.first()
+                var ok = 0
+                var abortedByWrongPassword = false
+                val today = LocalDate.now(clock)
 
-            for ((index, panel) in batch.withIndex()) {
-                val result = webhookClient.send(
-                    url = url,
-                    password = password,
-                    panel = panel,
-                    master = master,
-                    date = today,
-                )
-                when (result) {
-                    WebhookClient.Result.Ok -> {
-                        panelRepository.remove(panel.id)
-                        ok++
+                for ((index, panel) in batch.withIndex()) {
+                    val result = webhookClient.send(
+                        url = url,
+                        password = password,
+                        panel = panel,
+                        master = master,
+                        date = today,
+                    )
+                    when (result) {
+                        WebhookClient.Result.Ok -> {
+                            panelRepository.remove(panel.id)
+                            ok++
+                        }
+                        WebhookClient.Result.WrongPassword -> {
+                            errorLogRepository.log(panel.id, "wrong password")
+                            abortedByWrongPassword = true
+                        }
+                        is WebhookClient.Result.ServerError -> {
+                            errorLogRepository.log(panel.id, result.reason)
+                        }
+                        is WebhookClient.Result.NetworkError -> {
+                            errorLogRepository.log(panel.id, result.reason)
+                        }
                     }
-                    WebhookClient.Result.WrongPassword -> {
-                        errorLogRepository.log(panel.id, "wrong password")
-                        abortedByWrongPassword = true
-                    }
-                    is WebhookClient.Result.ServerError -> {
-                        errorLogRepository.log(panel.id, result.reason)
-                    }
-                    is WebhookClient.Result.NetworkError -> {
-                        errorLogRepository.log(panel.id, result.reason)
-                    }
+                    localState.update { it.copy(sendProgress = (index + 1) to batch.size) }
+                    if (abortedByWrongPassword) break
                 }
-                localState.update { it.copy(sendProgress = (index + 1) to batch.size) }
-                if (abortedByWrongPassword) break
-            }
 
-            val finalEvent: SnackbarEvent = when {
-                abortedByWrongPassword ->
-                    SnackbarEvent.Error("Неверный пароль. Открой настройки.")
-                ok == batch.size ->
-                    SnackbarEvent.Success("Отправлено $ok из ${batch.size} ✓")
-                else ->
-                    SnackbarEvent.Error("Отправлено $ok из ${batch.size}. Остальное — в логах.")
+                val finalEvent: SnackbarEvent = when {
+                    abortedByWrongPassword ->
+                        SnackbarEvent.Error("Неверный пароль. Открой настройки.")
+                    ok == batch.size ->
+                        SnackbarEvent.Success("Отправлено $ok из ${batch.size} ✓")
+                    else ->
+                        SnackbarEvent.Error("Отправлено $ok из ${batch.size}. Остальное — в логах.")
+                }
+                events.send(finalEvent)
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка при отправке", e)
+                events.send(SnackbarEvent.Error("Ошибка отправки: ${e.message}"))
+            } finally {
+                localState.update { it.copy(isSending = false, sendProgress = null) }
             }
-            events.send(finalEvent)
-
-            localState.update { it.copy(isSending = false, sendProgress = null) }
         }
     }
 
     fun onRemovePanel(panelId: String) {
         viewModelScope.launch {
-            panelRepository.remove(panelId)
+            try {
+                panelRepository.remove(panelId)
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка удаления панели", e)
+            }
         }
     }
 
     fun onClearClicked() {
         viewModelScope.launch {
-            panelRepository.clear()
-            events.send(SnackbarEvent.Info("Список очищен"))
+            try {
+                panelRepository.clear()
+                events.send(SnackbarEvent.Info("Список очищен"))
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка очистки списка", e)
+            }
         }
     }
 
     fun onEditFault(panelId: String, fault: String) {
         viewModelScope.launch {
-            panelRepository.updateFault(panelId, fault)
+            try {
+                panelRepository.updateFault(panelId, fault)
+            } catch (e: Exception) {
+                Log.e(tag, "Ошибка обновления замечания", e)
+            }
         }
     }
 
