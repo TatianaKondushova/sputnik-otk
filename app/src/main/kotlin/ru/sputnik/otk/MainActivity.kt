@@ -5,6 +5,7 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -128,9 +129,16 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent) {
         try {
-            val panelId = NfcParser.parse(intent) ?: return
-            appContainer.nfcScans.tryEmit(panelId)
-        } catch (_: Exception) {
+            Log.d("MainActivity", "handleIntent: action=${intent.action}")
+            val panelId = NfcParser.parse(intent)
+            if (panelId != null) {
+                Log.d("MainActivity", "NFC panelId=$panelId")
+                appContainer.nfcScans.tryEmit(panelId)
+            } else {
+                Log.d("MainActivity", "NfcParser вернул null")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Ошибка handleIntent", e)
         }
     }
 

@@ -1,6 +1,7 @@
 package ru.sputnik.otk.ui.screen.otk
 
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.channels.Channel
@@ -30,28 +31,26 @@ class OtkViewModel(
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
 
+    enum class VibrateType { SUCCESS, DUPLICATE, ERROR }
+
+    /** Вибрация. Вызывается из Screen. */
+    var onVibrate: ((VibrateType) -> Unit)? = null
+
+    /** Toast для диагностики. */
+    var showToast: ((String) -> Unit)? = null
+
     private val tag = "OtkViewModel"
 
     private val localState = MutableStateFlow(OtkUiState())
 
     init {
-        viewModelScope.launch {
-            try {
-                settingsStore.selectedMaster.collect { savedMaster ->
-                    if (localState.value.master == null && savedMaster != null) {
-                        localState.update { it.copy(master = savedMaster) }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(tag, "Ошибка загрузки выбранного мастера", e)
-            }
-        }
+        // Загружаем ТОЛЬКО список мастеров, НЕ выбранного мастера
+        // (по спеке мастер сбрасывается при каждом запуске)
         viewModelScope.launch {
             try {
                 settingsStore.masters.collect { masters ->
                     localState.update { current ->
-                        val validMaster = if (current.master in masters) current.master else null
-                        current.copy(master = validMaster, masters = masters)
+                        current.copy(masters = masters)
                     }
                 }
             } catch (e: Exception) {
@@ -59,6 +58,7 @@ class OtkViewModel(
             }
         }
     }
+
     private val events = Channel<SnackbarEvent>(Channel.BUFFERED)
 
     val uiState: StateFlow<OtkUiState> = combine(
@@ -71,13 +71,7 @@ class OtkViewModel(
 
     fun onMasterSelected(master: String) {
         localState.update { it.copy(master = master) }
-        viewModelScope.launch {
-            try {
-                settingsStore.setSelectedMaster(master)
-            } catch (e: Exception) {
-                Log.e(tag, "Ошибка сохранения мастера", e)
-            }
-        }
+        // НЕ сохраняем в DataStore — мастер только на текущую сессию
     }
 
     fun onPanelInputChanged(text: String) {
@@ -103,6 +97,7 @@ class OtkViewModel(
                         localState.update { it.copy(panelInput = "") }
                     }
                     PanelRepository.AddResult.Duplicate -> {
+                        onVibrate?.invoke(VibrateType.DUPLICATE)
                         events.send(SnackbarEvent.Error("Эта панель уже в списке"))
                     }
                 }
@@ -115,8 +110,10 @@ class OtkViewModel(
 
     fun onNfcScanned(panelId: String) {
         val master = localState.value.master
+        showToast?.invoke("NFC: $panelId | мастер=${master ?: "НЕ ВЫБРАН"}")
         if (master == null) {
             viewModelScope.launch {
+                onVibrate?.invoke(VibrateType.ERROR)
                 events.send(SnackbarEvent.Error("Сначала выбери мастера"))
             }
             return
@@ -127,13 +124,18 @@ class OtkViewModel(
         viewModelScope.launch {
             try {
                 when (panelRepository.add(Panel(id = id))) {
-                    PanelRepository.AddResult.Ok -> { /* nothing */ }
+                    PanelRepository.AddResult.Ok -> {
+                        onVibrate?.invoke(VibrateType.SUCCESS)
+                        events.send(SnackbarEvent.Success("Панель $id добавлена"))
+                    }
                     PanelRepository.AddResult.Duplicate -> {
+                        onVibrate?.invoke(VibrateType.DUPLICATE)
                         events.send(SnackbarEvent.Error("Эта панель уже в списке"))
                     }
                 }
             } catch (e: Exception) {
                 Log.e(tag, "Ошибка добавления панели по NFC", e)
+                onVibrate?.invoke(VibrateType.ERROR)
                 events.send(SnackbarEvent.Error("Ошибка NFC: ${e.message}"))
             }
         }
@@ -186,9 +188,11 @@ class OtkViewModel(
 
                 val finalEvent: SnackbarEvent = when {
                     abortedByWrongPassword ->
-                        SnackbarEvent.Error("Неверный пароль. Открой настройки.")
-                    ok == batch.size ->
+                        SnackbarEvent.Error("Ошибка отправки. Сообщи руководителю.")
+                    ok == batch.size -> {
+                        onVibrate?.invoke(VibrateType.SUCCESS)
                         SnackbarEvent.Success("Отправлено $ok из ${batch.size} ✓")
+                    }
                     else ->
                         SnackbarEvent.Error("Отправлено $ok из ${batch.size}. Остальное — в логах.")
                 }
