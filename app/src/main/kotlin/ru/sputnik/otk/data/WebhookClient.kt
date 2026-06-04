@@ -35,7 +35,7 @@ open class WebhookClient(
             panel = panel.id,
             master = master,
             date = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-            fault = panel.fault,
+            fault = panel.fault.ifBlank { "нет" },
         )
         val requestBody = json.encodeToString(RequestPayload.serializer(), body)
             .toRequestBody(JSON_MEDIA_TYPE)
