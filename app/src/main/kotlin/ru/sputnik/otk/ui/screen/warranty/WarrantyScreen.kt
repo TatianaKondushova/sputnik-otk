@@ -162,7 +162,6 @@ fun WarrantyScreen(
                 DealInfoCard(
                     deal = state.deal!!,
                     responsibleName = state.selectedResponsible,
-                    defectName = BitrixConfig.DefectEnum.ALL[state.deal!!.defects] ?: "—",
                 )
 
                 // Поля для редактирования
@@ -173,7 +172,7 @@ fun WarrantyScreen(
                     onReceiptDateChange = viewModel::onReceiptDateChanged,
                     onOutgoingTrackChange = viewModel::onOutgoingTrackChanged,
                     onResponsibleSelected = viewModel::onResponsibleSelected,
-                    onDefectSelected = viewModel::onDefectSelected,
+                    onDefectToggled = viewModel::onDefectToggled,
                 )
 
                 Spacer(Modifier.height(8.dp))
@@ -261,7 +260,6 @@ private fun StatusCard(
 private fun DealInfoCard(
     deal: DealInfo,
     responsibleName: String,
-    defectName: String,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -288,8 +286,9 @@ private fun DealInfoCard(
             if (deal.terminalBlock) InfoRow("Клемник:", "Да")
             if (deal.receiptDate.isNotBlank()) InfoRow("Дата приёмки:", deal.receiptDate)
             if (responsibleName.isNotBlank()) InfoRow("Ответственный:", responsibleName)
-            if (deal.defects.isNotBlank() && deal.defects != BitrixConfig.DefectEnum.NONE) {
-                InfoRow("Дефекты:", defectName)
+            if (deal.defects.isNotEmpty()) {
+                val names = deal.defects.mapNotNull { BitrixConfig.DefectEnum.ALL[it] }
+                InfoRow("Дефекты:", names.joinToString(", "))
             }
         }
     }
@@ -333,7 +332,7 @@ private fun EditableFields(
     onReceiptDateChange: (String) -> Unit,
     onOutgoingTrackChange: (String) -> Unit,
     onResponsibleSelected: (String) -> Unit,
-    onDefectSelected: (String) -> Unit,
+    onDefectToggled: (String, Boolean) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -388,13 +387,44 @@ private fun EditableFields(
                 onSelected = onResponsibleSelected,
             )
 
-            // Дефекты для «Принята на склад»
-            GenericDropdown(
-                label = "Дефекты внешнего вида",
-                selected = BitrixConfig.DefectEnum.ALL[state.selectedDefect] ?: "—",
-                options = state.defectNames,
-                onSelected = onDefectSelected,
+            // Дефекты — множественный выбор через чекбоксы
+            DefectCheckboxes(
+                selectedDefects = state.selectedDefects,
+                onToggle = onDefectToggled,
             )
+        }
+    }
+}
+
+@Composable
+private fun DefectCheckboxes(
+    selectedDefects: List<String>,
+    onToggle: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "Дефекты внешнего вида",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        BitrixConfig.DefectEnum.ALL.forEach { (enumId, name) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Checkbox(
+                    checked = enumId in selectedDefects,
+                    onCheckedChange = { checked -> onToggle(enumId, checked) },
+                )
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

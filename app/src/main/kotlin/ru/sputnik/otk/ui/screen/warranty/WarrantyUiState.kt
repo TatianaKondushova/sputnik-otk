@@ -30,8 +30,9 @@ data class WarrantyUiState(
     /** Выбранный ответственный (для «В ремонте», ASSIGNED_BY_ID). */
     val selectedResponsible: String = "",
 
-    /** Выбранный дефект — enum_id для множественного списка (для «Принята на склад»). */
-    val selectedDefect: String = BitrixConfig.DefectEnum.NONE,
+    /** Выбранные дефекты — список enum_id (для «Принята на склад»).
+     *  Если содержит NONE — значит "Замечаний нет" и ничего больше. */
+    val selectedDefects: List<String> = emptyList(),
 
     /** Идёт обновление сделки. */
     val isUpdating: Boolean = false,
@@ -42,8 +43,6 @@ data class WarrantyUiState(
     /** Список ответственных для выпадающего списка. */
     val responsibles: List<String> = BitrixConfig.ASSIGNED_USERS.map { it.name },
 
-    /** Список дефектов для выпадающего списка (названия). */
-    val defectNames: List<String> = BitrixConfig.DefectEnum.ALL.values.toList(),
 )
 
 /**
@@ -59,8 +58,8 @@ data class DealInfo(
     val receiptDate: String,
     /** ID ответственного (ASSIGNED_BY_ID) */
     val responsibleId: String,
-    /** enum_id дефекта из поля UF_CRM_1747747695061 */
-    val defects: String,
+    /** Список enum_id дефектов из поля UF_CRM_1747747695061 */
+    val defects: List<String>,
 )
 
 /** Преобразует DTO BitrixClient в UI-модель. */
@@ -73,5 +72,5 @@ fun BitrixClient.Deal.toDealInfo(): DealInfo = DealInfo(
     terminalBlock = terminalBlock == "1" || terminalBlock == "true" || terminalBlock == "Да",
     receiptDate = receiptDate.orEmpty(),
     responsibleId = assignedById.orEmpty(),
-    defects = defects.orEmpty(),
+    defects = defects,
 )

@@ -72,13 +72,15 @@ class BitrixClient(
      * @param dealId ID сделки в Bitrix24
      * @param stageId ID новой стадии (например, C25:EXECUTING)
      * @param fields Карта полей для обновления (ключ = UF_CRM_..., значение = строка)
+     * @param defectEnums Список enum_id дефектов для множественного выбора (отдельно, т.к. массив)
      */
     suspend fun updateDeal(
         dealId: Int,
         stageId: String,
         fields: Map<String, String> = emptyMap(),
+        defectEnums: List<String> = emptyList(),
     ): UpdateResult = withContext(Dispatchers.IO) {
-        val url = buildUpdateUrl(dealId, stageId, fields)
+        val url = buildUpdateUrl(dealId, stageId, fields, defectEnums)
             ?: return@withContext UpdateResult.Error("bad base URL")
 
         val request = Request.Builder()
@@ -128,6 +130,7 @@ class BitrixClient(
         dealId: Int,
         stageId: String,
         fields: Map<String, String>,
+        defectEnums: List<String>,
     ): String? {
         val base = BitrixConfig.BASE_URL.toHttpUrlOrNull() ?: return null
         val builder = base.newBuilder()
@@ -136,12 +139,12 @@ class BitrixClient(
             .addQueryParameter("fields[STAGE_ID]", stageId)
 
         fields.forEach { (key, value) ->
-            if (key == BitrixConfig.Fields.DEFECTS) {
-                // Множественный выбор: массивный синтаксис
-                builder.addQueryParameter("fields[$key][]", value)
-            } else {
-                builder.addQueryParameter("fields[$key]", value)
-            }
+            builder.addQueryParameter("fields[$key]", value)
+        }
+
+        // Дефекты — множественный выбор: массивный синтаксис
+        defectEnums.forEach { enumId ->
+            builder.addQueryParameter("fields[${BitrixConfig.Fields.DEFECTS}][]", enumId)
         }
 
         return builder.build().toString()
@@ -230,9 +233,9 @@ class BitrixClient(
         val assignedById: String
             get() = parseBitrixString(assignedByIdRaw)
 
-        /** Распарсенное поле дефектов: строка/массив → первый элемент, false/null → пусто. */
-        val defects: String
-            get() = parseBitrixString(defectsRaw)
+        /** Распарсенное поле дефектов: строка/массив → список enum_id, false/null → пусто. */
+        val defects: List<String>
+            get() = parseBitrixList(defectsRaw)
     }
 
     @Serializable
@@ -258,5 +261,19 @@ private fun parseBitrixString(raw: JsonElement?): String {
             (first as? JsonPrimitive)?.content?.takeIf { it != "true" && it != "false" }
         } ?: ""
         else -> ""
+    }
+}
+
+/** Распарсить список значений: строка/число → [значение], массив → все элементы, false/null → пусто. */
+private fun parseBitrixList(raw: JsonElement?): List<String> {
+    return when (raw) {
+        is JsonPrimitive -> {
+            val v = raw.content.takeIf { it != "true" && it != "false" && it.isNotBlank() }
+            if (v != null) listOf(v) else emptyList()
+        }
+        is JsonArray -> raw.mapNotNull { element ->
+            (element as? JsonPrimitive)?.content?.takeIf { it != "true" && it != "false" && it.isNotBlank() }
+        }
+        else -> emptyList()
     }
 }

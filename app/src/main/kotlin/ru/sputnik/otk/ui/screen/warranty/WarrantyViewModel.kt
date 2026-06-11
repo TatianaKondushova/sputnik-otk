@@ -68,7 +68,7 @@ class WarrantyViewModel(
                                 selectedResponsible = current.responsibles.firstOrNull { name ->
                                     userIdByName(name) == deal.responsibleId
                                 } ?: "",
-                                selectedDefect = deal.defects.ifBlank { BitrixConfig.DefectEnum.NONE },
+                                selectedDefects = deal.defects,
                             )
                         }
                     }
@@ -122,23 +122,47 @@ class WarrantyViewModel(
         _uiState.update { it.copy(selectedResponsible = name) }
     }
 
-    fun onDefectSelected(defectName: String) {
-        val enumId = BitrixConfig.DefectEnum.BY_NAME[defectName] ?: BitrixConfig.DefectEnum.NONE
-        _uiState.update { it.copy(selectedDefect = enumId) }
+    /**
+     * Тоггл дефекта. Логика взаимоисключения:
+     * - NONE сбрасывает все реальные дефекты
+     * - любой реальный дефект сбрасывает NONE
+     */
+    fun onDefectToggled(enumId: String, checked: Boolean) {
+        _uiState.update { current ->
+            val defects = current.selectedDefects.toMutableList()
+            if (enumId == BitrixConfig.DefectEnum.NONE) {
+                // "Замечаний нет" — выбираем только его, остальные сбрасываем
+                if (checked) listOf(BitrixConfig.DefectEnum.NONE) else emptyList()
+            } else {
+                // Реальный дефект — убираем NONE, добавляем/убираем этот дефект
+                val updated = defects.filter { it != BitrixConfig.DefectEnum.NONE }.toMutableList()
+                if (checked) {
+                    if (!updated.contains(enumId)) updated.add(enumId)
+                } else {
+                    updated.remove(enumId)
+                }
+                updated
+            }.let { newDefects -> current.copy(selectedDefects = newDefects) }
+        }
     }
 
     // --- Кнопки перехода стадий ---
 
     /** «Принята на склад» — стадия C25:EXECUTING + трек, клемник, дата, дефекты (enum_id). */
     fun onReceivedClicked() {
-        updateStage(BitrixConfig.Stages.RECEIVED) {
-            buildMap {
-                if (it.incomingTrack.isNotBlank()) put(BitrixConfig.Fields.INCOMING_TRACK, it.incomingTrack)
-                put(BitrixConfig.Fields.TERMINAL_BLOCK, if (it.terminalBlock) "1" else "0")
-                if (it.receiptDate.isNotBlank()) put(BitrixConfig.Fields.RECEIPT_DATE, it.receiptDate)
-                put(BitrixConfig.Fields.DEFECTS, it.selectedDefect)
-            }
-        }
+        val defectEnums = _uiState.value.selectedDefects
+            .filter { it != BitrixConfig.DefectEnum.NONE }
+        updateStage(
+            stageId = BitrixConfig.Stages.RECEIVED,
+            fields = buildMap {
+                if (uiState.value.incomingTrack.isNotBlank())
+                    put(BitrixConfig.Fields.INCOMING_TRACK, uiState.value.incomingTrack)
+                put(BitrixConfig.Fields.TERMINAL_BLOCK, if (uiState.value.terminalBlock) "1" else "0")
+                if (uiState.value.receiptDate.isNotBlank())
+                    put(BitrixConfig.Fields.RECEIPT_DATE, uiState.value.receiptDate)
+            },
+            defectEnums = defectEnums,
+        )
     }
 
     /** «В ремонте» — стадия C25:2 + ответственный (ASSIGNED_BY_ID). */
@@ -157,25 +181,25 @@ class WarrantyViewModel(
             }
             return
         }
-        updateStage(BitrixConfig.Stages.IN_REPAIR) {
-            mapOf(BitrixConfig.Fields.ASSIGNED_BY_ID to userId)
-        }
+        updateStage(
+            stageId = BitrixConfig.Stages.IN_REPAIR,
+            fields = mapOf(BitrixConfig.Fields.ASSIGNED_BY_ID to userId),
+        )
     }
 
     /** «Выходной контроль» — стадия C25:FINAL_INVOICE. */
     fun onQcOutClicked() {
-        updateStage(BitrixConfig.Stages.QC_OUT)
+        updateStage(stageId = BitrixConfig.Stages.QC_OUT)
     }
 
     /** «Готово к отправке» — стадия C25:7 + исходящий трек. */
     fun onReadyToShipClicked() {
-        updateStage(BitrixConfig.Stages.READY_TO_SHIP) { state ->
-            if (state.outgoingTrack.isNotBlank()) {
-                mapOf(BitrixConfig.Fields.OUTGOING_TRACK to state.outgoingTrack)
-            } else {
-                emptyMap()
-            }
+        val fields = if (uiState.value.outgoingTrack.isNotBlank()) {
+            mapOf(BitrixConfig.Fields.OUTGOING_TRACK to uiState.value.outgoingTrack)
+        } else {
+            emptyMap()
         }
+        updateStage(stageId = BitrixConfig.Stages.READY_TO_SHIP, fields = fields)
     }
 
     // --- Внутренний helper ---
@@ -185,16 +209,16 @@ class WarrantyViewModel(
 
     private fun updateStage(
         stageId: String,
-        fieldsBuilder: (WarrantyUiState) -> Map<String, String> = { emptyMap() },
+        fields: Map<String, String> = emptyMap(),
+        defectEnums: List<String> = emptyList(),
     ) {
         val deal = _uiState.value.deal ?: return
-        val fields = fieldsBuilder(_uiState.value)
 
         _uiState.update { it.copy(isUpdating = true, updateResult = null) }
 
         viewModelScope.launch {
             try {
-                when (val result = bitrixClient.updateDeal(deal.id, stageId, fields)) {
+                when (val result = bitrixClient.updateDeal(deal.id, stageId, fields, defectEnums)) {
                     is BitrixClient.UpdateResult.Success -> {
                         _uiState.update { current ->
                             current.copy(
@@ -243,7 +267,7 @@ class WarrantyViewModel(
                 receiptDate = "",
                 outgoingTrack = "",
                 selectedResponsible = "",
-                selectedDefect = BitrixConfig.DefectEnum.NONE,
+                selectedDefects = emptyList(),
             )
         }
     }
