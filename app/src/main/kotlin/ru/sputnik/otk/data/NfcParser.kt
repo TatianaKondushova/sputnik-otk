@@ -5,47 +5,48 @@ import android.nfc.NdefMessage
 import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
-import android.util.Log
+import ru.sputnik.otk.AppLogger
 
 object NfcParser {
     private const val TAG = "NfcParser"
 
     fun parse(intent: Intent): String? {
         val action = intent.action
-        Log.d(TAG, "parse() action=$action")
+        AppLogger.d(TAG, "parse() action=$action")
 
-        // Принимаем все NFC-интенты (foreground dispatch даёт ACTION_TAG_DISCOVERED)
         if (action != NfcAdapter.ACTION_NDEF_DISCOVERED &&
             action != NfcAdapter.ACTION_TECH_DISCOVERED &&
             action != NfcAdapter.ACTION_TAG_DISCOVERED
         ) {
-            Log.d(TAG, "Не NFC-интент, пропускаем")
+            AppLogger.d(TAG, "Не NFC-интент, пропускаем (action=$action)")
             return null
         }
 
         // Способ 1: читаем NDEF-сообщения из интента
         val rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
+        AppLogger.d(TAG, "NDEF messages count=${rawMsgs?.size ?: 0}")
         if (rawMsgs != null && rawMsgs.isNotEmpty()) {
             val msg = rawMsgs.firstOrNull() as? NdefMessage
             val record = msg?.records?.firstOrNull()
             if (record != null) {
                 val text = readText(record)?.trim()?.takeIf { it.isNotBlank() }
+                AppLogger.d(TAG, "NDEF record type=${record.type?.contentToString()}, text=$text")
                 if (text != null) {
-                    Log.d(TAG, "NDEF текст: $text")
+                    AppLogger.i(TAG, "NDEF текст: '$text'")
                     return text
                 }
             }
         }
 
-        // Способ 2: fallback — UID метки (серийный номер)
+        // Способ 2: fallback — UID метки
         val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
         if (tag != null) {
             val uid = bytesToHex(tag.id)
-            Log.d(TAG, "UID метки = $uid (techList: ${tag.techList.toList()})")
+            AppLogger.i(TAG, "UID метки=$uid, techList=${tag.techList.toList()}")
             return uid
         }
 
-        Log.d(TAG, "Не удалось распарсить NFC")
+        AppLogger.w(TAG, "Не удалось распарсить NFC (нет NDEF, нет TAG)")
         return null
     }
 
@@ -62,7 +63,6 @@ object NfcParser {
                 textEncoding,
             )
         }
-        // Пробуем как обычный UTF-8 текст
         return String(record.payload, Charsets.UTF_8)
     }
 

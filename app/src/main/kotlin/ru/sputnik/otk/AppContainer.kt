@@ -11,9 +11,11 @@ import ru.sputnik.otk.data.JsonFilePanelRepository
 import ru.sputnik.otk.data.PanelRepository
 import ru.sputnik.otk.data.SettingsStore
 import ru.sputnik.otk.data.WebhookClient
+import ru.sputnik.otk.data.bitrix.BitrixClient
 import ru.sputnik.otk.ui.screen.errorlog.ErrorLogViewModelFactory
 import ru.sputnik.otk.ui.screen.otk.OtkViewModelFactory
 import ru.sputnik.otk.ui.screen.settings.SettingsViewModelFactory
+import ru.sputnik.otk.ui.screen.warranty.WarrantyViewModelFactory
 import java.time.Duration
 
 class AppContainer(context: Context) {
@@ -40,6 +42,7 @@ class AppContainer(context: Context) {
         file = filesDir.resolve("error_log.json"),
         json = json,
     )
+    val bitrixClient: BitrixClient = BitrixClient(httpClient, json, errorLogRepository)
     val settingsStore: SettingsStore = SettingsStore.singleton(context, json)
 
     fun otkViewModelFactory(): ViewModelProvider.Factory =
@@ -50,4 +53,7 @@ class AppContainer(context: Context) {
 
     fun errorLogViewModelFactory(): ViewModelProvider.Factory =
         ErrorLogViewModelFactory(errorLogRepository)
+
+    fun warrantyViewModelFactory(): ViewModelProvider.Factory =
+        WarrantyViewModelFactory(bitrixClient)
 }

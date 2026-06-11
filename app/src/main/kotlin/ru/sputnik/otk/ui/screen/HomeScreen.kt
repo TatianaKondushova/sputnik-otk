@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -36,12 +35,15 @@ import ru.sputnik.otk.MainActivity
 import ru.sputnik.otk.ui.theme.SputnikBlue
 import ru.sputnik.otk.ui.theme.SputnikBluePale
 import ru.sputnik.otk.ui.theme.SputnikOtkTheme
+import ru.sputnik.otk.ui.theme.SuccessGreen
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     onNavigateToOtk: () -> Unit,
+    onNavigateToWarranty: () -> Unit,
     onLongPressTitle: () -> Unit,
+    onNavigateToLogs: () -> Unit = {},
 ) {
     val crashLog = MainActivity.appLastCrashLog
     var showCrashDialog by remember { mutableStateOf(crashLog != null) }
@@ -134,6 +136,55 @@ fun HomeScreen(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            onClick = onNavigateToWarranty,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = SuccessGreen,
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "Гарантия",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = SputnikBluePale,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Bitrix24",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SputnikBluePale,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Кнопка Логи (маленькая, незаметная)
+        TextButton(
+            onClick = onNavigateToLogs,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = "📋 Логи приложения",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -143,6 +194,7 @@ private fun HomeScreenPreview() {
     SputnikOtkTheme {
         HomeScreen(
             onNavigateToOtk = {},
+            onNavigateToWarranty = {},
             onLongPressTitle = {},
         )
     }

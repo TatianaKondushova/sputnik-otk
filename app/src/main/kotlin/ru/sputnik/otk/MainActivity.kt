@@ -5,7 +5,6 @@ import android.content.Intent
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,8 +20,10 @@ import androidx.navigation.compose.rememberNavController
 import ru.sputnik.otk.data.NfcParser
 import ru.sputnik.otk.ui.screen.HomeScreen
 import ru.sputnik.otk.ui.screen.errorlog.ErrorLogScreen
+import ru.sputnik.otk.ui.screen.logs.LogsScreen
 import ru.sputnik.otk.ui.screen.otk.OtkScreen
 import ru.sputnik.otk.ui.screen.settings.SettingsScreen
+import ru.sputnik.otk.ui.screen.warranty.WarrantyScreen
 import ru.sputnik.otk.ui.theme.SputnikOtkTheme
 
 class MainActivity : ComponentActivity() {
@@ -40,7 +41,6 @@ class MainActivity : ComponentActivity() {
         val lastCrash = CrashLogger.readAndClear(this)
         if (lastCrash != null) {
             Toast.makeText(this, "Был краш! Смотри настройки → Логи краша", Toast.LENGTH_LONG).show()
-            // Сохраняем для просмотра в экране логов
             appLastCrashLog = lastCrash
         }
 
@@ -60,9 +60,22 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(Unit) {
                             try {
                                 appContainer.nfcScans.collect { panelId ->
-                                    if (navController.currentDestination?.route != "otk") {
-                                        appContainer.pendingNfcPanelId = panelId
-                                        navController.navigate("otk")
+                                    val route = navController.currentDestination?.route
+                                    AppLogger.d("MainActivity", "NFC scan: panelId='$panelId', route='$route'")
+                                    when (route) {
+                                        "otk" -> {
+                                            AppLogger.d("MainActivity", "NFC: на экране ОТК, оставляем (OtkScreen получит через pendingNfcPanelId)")
+                                            // OtkScreen обработает через pendingNfcPanelId
+                                        }
+                                        "warranty" -> {
+                                            AppLogger.d("MainActivity", "NFC: на экране Гарантия, пропускаем (WarrantyScreen сам обработает)")
+                                            // WarrantyScreen сам коллектит nfcScans
+                                        }
+                                        else -> {
+                                            appContainer.pendingNfcPanelId = panelId
+                                            navController.navigate("otk")
+                                            AppLogger.d("MainActivity", "NFC: navigate -> otk (route=$route)")
+                                        }
                                     }
                                 }
                             } catch (_: Exception) {
@@ -73,7 +86,9 @@ class MainActivity : ComponentActivity() {
                             composable("home") {
                                 HomeScreen(
                                     onNavigateToOtk = { navController.navigate("otk") },
+                                    onNavigateToWarranty = { navController.navigate("warranty") },
                                     onLongPressTitle = { navController.navigate("settings") },
+                                    onNavigateToLogs = { navController.navigate("app_logs") },
                                 )
                             }
                             composable("otk") {
@@ -89,6 +104,16 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("error_log") {
                                 ErrorLogScreen(
+                                    onNavigateBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable("warranty") {
+                                WarrantyScreen(
+                                    onNavigateBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable("app_logs") {
+                                LogsScreen(
                                     onNavigateBack = { navController.popBackStack() },
                                 )
                             }
@@ -110,7 +135,9 @@ class MainActivity : ComponentActivity() {
             }
             val pendingIntent = PendingIntent.getActivity(this, 0, intent, pendingIntentFlags)
             nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
-        } catch (_: Exception) {
+            AppLogger.d("MainActivity", "NFC foreground dispatch enabled")
+        } catch (e: Exception) {
+            AppLogger.e("MainActivity", "Ошибка enableForegroundDispatch", e)
         }
     }
 
@@ -118,27 +145,30 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         try {
             nfcAdapter?.disableForegroundDispatch(this)
-        } catch (_: Exception) {
+            AppLogger.d("MainActivity", "NFC foreground dispatch disabled")
+        } catch (e: Exception) {
+            AppLogger.e("MainActivity", "Ошибка disableForegroundDispatch", e)
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        AppLogger.d("MainActivity", "onNewIntent: action=${intent.action}")
         handleIntent(intent)
     }
 
     private fun handleIntent(intent: Intent) {
         try {
-            Log.d("MainActivity", "handleIntent: action=${intent.action}")
             val panelId = NfcParser.parse(intent)
             if (panelId != null) {
-                Log.d("MainActivity", "NFC panelId=$panelId")
-                appContainer.nfcScans.tryEmit(panelId)
+                AppLogger.d("MainActivity", "NFC parsed: panelId='$panelId'")
+                val emitted = appContainer.nfcScans.tryEmit(panelId)
+                AppLogger.d("MainActivity", "NFC emitted=$emitted")
             } else {
-                Log.d("MainActivity", "NfcParser вернул null")
+                AppLogger.d("MainActivity", "NfcParser вернул null")
             }
         } catch (e: Exception) {
-            Log.e("MainActivity", "Ошибка handleIntent", e)
+            AppLogger.e("MainActivity", "Ошибка handleIntent/NfcParser", e)
         }
     }
 
